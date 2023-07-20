@@ -8,7 +8,7 @@ from bot import Context, GiftifyHelper, Interaction
 ROLES: Dict[str, int] = {
     "Giveaways": 1122414304096952401,
     "Guild News": 1122445113176637450,
-    "Bot Update": 1122414162002329620,
+    "Bot Updates": 1122414162002329620,
     "Bot Outages & Status": 1122413983861850132,
 }
 
