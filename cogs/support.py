@@ -9,6 +9,7 @@ DEVELOPER_ROLE_ID = 1089823072544108640
 BOT_ADMIN_ROLE_ID = 1089823072544108638
 MOD_ROLE_ID = 1120688394859720876
 
+SUPPORT_CHANNEL_ID = 1131077649633120336
 SUPPORT_ACCESS_ROLE_ID = 1122445173864026153
 
 REPORT_CHANNEL_ID = 1131470656127647754
@@ -48,12 +49,20 @@ class HelpdeskDropdown(discord.ui.Select):
         )
 
     async def callback(self, interaction: Interaction):
+        await interaction.response.edit_message()
         selected_option = self.values[0]
         embed = self.get_embed(selected_option)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
         if selected_option == "support":
             assert isinstance(interaction.user, discord.Member)
             await interaction.user.add_roles(discord.Object(SUPPORT_ACCESS_ROLE_ID))
+
+            channel: Optional[discord.TextChannel] = interaction.client.get_channel(SUPPORT_CHANNEL_ID)  # type: ignore
+            if channel:
+                await channel.send(
+                    f"{interaction.user.mention}, You have been given access to this channel. Please ask your queries here without pinging a staff member and have patience for at least 30 minutes before pinging someone.",
+                    delete_after=10,
+                )
 
     @staticmethod
     def get_embed(selected_option: str) -> discord.Embed:
@@ -145,7 +154,7 @@ class Support(commands.Cog):
                 for member in role.members:
                     await member.remove_roles(role)
                     i += 1
-                await ctx.send(f"Removed the role from {i} members!")
+                await ctx.send(f"Removed the role from **{i}** members!")
         else:
             await ctx.send("The support access role was not found.")
 
@@ -163,6 +172,7 @@ class Support(commands.Cog):
             embed.set_author(name=ctx.author.name, icon_url=ctx.author.display_avatar)
 
             await channel.send(embed=embed)
+            await ctx.send("Successfully sent the report!")
         else:
             await ctx.send("The support channel was not found.")
 
