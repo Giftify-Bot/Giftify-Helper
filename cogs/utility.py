@@ -57,6 +57,7 @@ class Utility(commands.Cog):
         self.bot.add_view(RolesView(ROLES))
 
     @commands.command()
+    @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
     async def rules(self, ctx: Context) -> None:
         image_url = "https://giftifybot.vercel.app/giftify_circle.png"
@@ -138,6 +139,7 @@ class Utility(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
+    @commands.guild_only()
     @commands.has_permissions(manage_guild=True)
     async def roles(self, ctx: Context) -> None:
         image_url = "https://giftifybot.vercel.app/giftify_circle.png"

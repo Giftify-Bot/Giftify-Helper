@@ -9,7 +9,7 @@ try:
 except ImportError:
     from typing_extensions import Self
 
-EXTENSIONS: Tuple[str, ...] = ("cogs.utility",)
+EXTENSIONS: Tuple[str, ...] = ("cogs.utility", "cogs.support")
 
 
 class GiftifyHelper(commands.Bot):
