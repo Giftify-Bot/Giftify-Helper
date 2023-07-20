@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "giftify-helper"
+version = "0.1.0"
+description = "The helper bot for Giftify Helper."
+authors = ["AmazingAkai"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "giftify_helper"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+discord-py = "^2.3.1"
+jishaku = "^2.5.1"
+python-dotenv = "^1.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
