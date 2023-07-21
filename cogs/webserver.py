@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 from typing import Optional
 
 import discord
@@ -19,6 +20,8 @@ INCIDENT_EMOJIS = {
 STATUS_CHANNEL_ID = 1117845433507655742
 STATUS_ROLE_MENTION = "<@&1122413983861850132>"
 
+VOTERS_CHANNEL_ID = 1131828420196712498
+
 
 class WebServer(commands.Cog):
     def __init__(self, bot: GiftifyHelper):
@@ -26,6 +29,7 @@ class WebServer(commands.Cog):
         self.app = web.Application()
         self.app.router.add_get("/", self.handle)
         self.app.router.add_post("/instatus-webhook", self.handle_instatus_webhook)
+        self.app.router.add_post("/dbl-webhook", self.handle_dbl_webhook)
 
     async def cog_load(self):
         runner = web.AppRunner(self.app)
@@ -43,10 +47,39 @@ class WebServer(commands.Cog):
     async def handle_instatus_webhook(self, request: web.Request):
         data = await request.json()
 
+        if request.query.get("auth") != os.environ["INSTATUS_AUTH"]:
+            return web.json_response({"error": "401: Unauthorized"}, status=401)
+
         if "incident" not in data or "incident_updates" not in data["incident"]:
             return web.json_response({"error": "Invalid webhook data"}, status=400)
 
         await self.send_webhook_message(data["incident"])
+
+        return web.json_response({"success": True})
+
+    async def handle_dbl_webhook(self, request: web.Request):
+        data = await request.json()
+
+        signature = request.headers.get("Authorization")
+        if not signature or signature != os.environ.get("DBL_WEBHOOK_AUTH"):
+            return web.json_response({"error": "401: Unauthorized"}, status=401)
+
+        user_id = int(data["user"])
+
+        user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
+        timestamp = int(
+            (datetime.datetime.now() + datetime.timedelta(hours=12)).timestamp()
+        )
+        embed = discord.Embed(
+            title="Thanks for supporting **Giftify**",
+            description=f"<:GiftifyCrown:1120756290067628103> **{user.display_name}** just upvoted **Giftify**!\n\n<:GiftifyBlank:1121694102673707079> <:GiftifyArrow:1117849870678638653> They can vote again **<t:{timestamp}:R>** using **[this link](https://giftifybot.vercel.app/vote)**.",
+            color=discord.Color.blurple(),
+        )
+        embed.set_thumbnail(url=user.display_avatar)
+
+        channel: Optional[discord.TextChannel] = self.bot.get_channel(VOTERS_CHANNEL_ID)  # type: ignore
+        if channel is not None:
+            await channel.send(embed=embed)
 
         return web.json_response({"success": True})
 
