@@ -1,9 +1,9 @@
 from typing import Optional
 
-import discord
-from discord.ext import commands
+import discord_http as discord
+from discord_http import commands
 
-from bot import Context, GiftifyHelper, Interaction
+from bot import GiftifyHelper
 
 DEVELOPER_ROLE_ID = 1089823072544108640
 BOT_ADMIN_ROLE_ID = 1089823072544108638
@@ -15,63 +15,70 @@ SUPPORT_ACCESS_ROLE_ID = 1122445173864026153
 REPORT_CHANNEL_ID = 1131470656127647754
 
 
-class HelpdeskDropdown(discord.ui.Select):
+class HelpdeskDropdown(discord.view.Select):
     def __init__(self):
-        options = [
-            discord.SelectOption(
-                label="How to use the bot",
-                value="help",
-                description="Learn how to setup and use the bot",
-            ),
-            discord.SelectOption(
-                label="Technical Issues",
-                value="status",
-                description="If you are facing issues using the bot",
-            ),
-            discord.SelectOption(
-                label="Report A Problem",
-                value="report",
-                description="If you want to report a problem or a bug",
-            ),
-            discord.SelectOption(
-                label="Get human support",
-                value="support",
-                description="If none of the above answers your question",
-            ),
-        ]
-
         super().__init__(
             custom_id="helpdesk",
             placeholder="Choose a help topic...",
             min_values=1,
             max_values=1,
-            options=options,
         )
 
-    async def callback(self, interaction: Interaction):
-        await interaction.response.edit_message()
-        selected_option = self.values[0]
-        embed = self.get_embed(selected_option)
-        await interaction.followup.send(embed=embed, ephemeral=True)
-        if selected_option == "support":
-            assert isinstance(interaction.user, discord.Member)
-            await interaction.user.add_roles(discord.Object(SUPPORT_ACCESS_ROLE_ID))
+        self.add_item(
+            label="How to use the bot",
+            value="help",
+            description="Learn how to setup and use the bot",
+        )
+        self.add_item(
+            label="Technical Issues",
+            value="status",
+            description="If you are facing issues using the bot",
+        )
+        self.add_item(
+            label="Report A Problem",
+            value="report",
+            description="If you want to report a problem or a bug",
+        )
+        self.add_item(
+            label="Get human support",
+            value="support",
+            description="If none of the above answers your question",
+        )
 
-            channel: Optional[discord.TextChannel] = interaction.client.get_channel(SUPPORT_CHANNEL_ID)  # type: ignore
-            if channel:
-                await channel.send(
-                    f"{interaction.user.mention}, You have been given access to this channel. Please ask your queries here without pinging a staff member and have patience for at least 30 minutes before pinging someone.",
-                    delete_after=10,
-                )
+
+class HelpdeskDropdownView(discord.view.View):
+    def __init__(self):
+        super().__init__(HelpdeskDropdown())
+
+
+class Support(commands.Cog):
+    def __init__(self, bot: GiftifyHelper):
+        self.bot = bot
+
+    @commands.interaction("helpdesk")
+    async def helpdesk_interaction(self, ctx: discord.Context):
+        async def call_after(ctx: discord.Context):
+            selected_option = ctx.select_values.strings[0]
+            embed = self.get_embed(selected_option)
+
+            if selected_option == "support":
+                assert isinstance(ctx.user, discord.Member)
+                await ctx.user.add_roles(SUPPORT_ACCESS_ROLE_ID)
+
+            return ctx.response.send_message(embed=embed, ephemeral=True)
+
+        return ctx.response.edit_message(call_after=call_after)
 
     @staticmethod
     def get_embed(selected_option: str) -> discord.Embed:
         embed = discord.Embed(color=0xCB3045)
-        embed.set_thumbnail(url="https://giftifybot.vercel.app/giftify_circle.png")
+        embed.set_thumbnail(
+            url="https://media.discordapp.net/attachments/1120627940485509150/1183051663301427320/Logo_Circle.png"
+        )
         embed.set_author(
             name="Giftify Discord Bot",
             url="https://giftifybot.vercel.app/",
-            icon_url="https://giftifybot.vercel.app/giftify_circle.png",
+            icon_url="https://media.discordapp.net/attachments/1120627940485509150/1183051663301427320/Logo_Circle.png",
         )
 
         if selected_option == "help":
@@ -92,7 +99,7 @@ class HelpdeskDropdown(discord.ui.Select):
             embed.title = "Report A Problem 🐞"
             embed.description = (
                 "If you encounter a problem or a bug with the bot, "
-                "please report it using the `.report <bug_info>` command in <#1089823073294897198> channel."
+                "please report it by creating an issue on [the bot's github repository](https://giftifybot.vercel.app/github)."
             )
 
         elif selected_option == "support":
@@ -107,24 +114,12 @@ class HelpdeskDropdown(discord.ui.Select):
 
         return embed
 
-
-class HelpdeskDropdownView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(HelpdeskDropdown())
-
-
-class Support(commands.Cog):
-    def __init__(self, bot: GiftifyHelper):
-        self.bot = bot
-
-    def cog_load(self):
-        self.bot.add_view(HelpdeskDropdownView())
-
     @commands.command()
     @commands.guild_only()
-    @commands.has_permissions(manage_guild=True)
-    async def helpdesk(self, ctx: Context):
+    @commands.has_permissions("manage_guild")
+    async def helpdesk(self, ctx: discord.Context):
+        assert ctx.channel is not None
+
         embed = discord.Embed(
             title="Welcome to the Giftify Bot Helpdesk! 🎁",
             description=(
@@ -135,46 +130,13 @@ class Support(commands.Cog):
         )
         embed.set_author(
             name="Giftify Bot - Support",
-            icon_url="https://giftifybot.vercel.app/giftify_circle.png",
+            icon_url="https://media.discordapp.net/attachments/1120627940485509150/1183051663301427320/Logo_Circle.png",
         )
 
         view = HelpdeskDropdownView()
-        await ctx.send(embed=embed, view=view)
+        await ctx.channel.send(embed=embed, view=view)
 
-    @commands.command(name="clearsupport", aliases=["cs", "clear_support"])
-    @commands.guild_only()
-    @commands.has_any_role(DEVELOPER_ROLE_ID, BOT_ADMIN_ROLE_ID, MOD_ROLE_ID)
-    async def clear_support(self, ctx: Context):
-        assert ctx.guild is not None
-
-        role = ctx.guild.get_role(SUPPORT_ACCESS_ROLE_ID)
-        if role:
-            async with ctx.typing():
-                i = 0
-                for member in role.members:
-                    await member.remove_roles(role)
-                    i += 1
-                await ctx.send(f"Removed the role from **{i}** members!")
-        else:
-            await ctx.send("The support access role was not found.")
-
-    @commands.command()
-    @commands.cooldown(1, 600, commands.BucketType.user)
-    @commands.guild_only()
-    async def report(self, ctx: Context, *, bug: str):
-        channel: Optional[discord.TextChannel] = self.bot.get_channel(REPORT_CHANNEL_ID)  # type: ignore
-        if channel:
-            embed = discord.Embed(
-                title="New bug reported!",
-                description=bug[:2048],
-                color=discord.Colour.red(),
-            )
-            embed.set_author(name=ctx.author.name, icon_url=ctx.author.display_avatar)
-
-            await channel.send(embed=embed)
-            await ctx.send("Successfully sent the report!")
-        else:
-            await ctx.send("The support channel was not found.")
+        return ctx.response.send_message("Successfully sent the embed!", ephemeral=True)
 
 
 async def setup(bot: GiftifyHelper):

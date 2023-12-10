@@ -1,9 +1,9 @@
 from typing import Dict
 
-import discord
-from discord.ext import commands
+import discord_http as discord
+from discord_http import commands
 
-from bot import Context, GiftifyHelper, Interaction
+from bot import GiftifyHelper
 
 ROLES: Dict[str, int] = {
     "Giveaways": 1122414304096952401,
@@ -13,56 +13,65 @@ ROLES: Dict[str, int] = {
 }
 
 
-class RolesButton(discord.ui.Button):
+class RolesButton(discord.view.Button):
     def __init__(self, *, label: str, role_id: int):
-        self.role_id = role_id
         super().__init__(
-            label=label, style=discord.ButtonStyle.primary, custom_id=str(role_id)
+            label=label,
+            style=discord.ButtonStyles.primary,
+            custom_id=f"roles:{role_id}",
         )
 
-    async def callback(self, interaction: Interaction):
-        await interaction.response.defer(thinking=True, ephemeral=True)
-        assert isinstance(interaction.user, discord.Member)
 
-        role = discord.Object(self.role_id)
-
-        embed = discord.Embed()
-
-        if interaction.user.get_role(self.role_id):
-            await interaction.user.remove_roles(role)
-            embed.colour = discord.Colour.green()
-            embed.description = f"<:GiftifyMinus:1122076950421327872> Removed <@&{self.role_id}> from you!"
-        else:
-            await interaction.user.add_roles(role)
-            embed.colour = discord.Colour.red()
-            embed.description = (
-                f"<:GiftifyPlus:1122076954556903494> Added <@&{self.role_id}> to you!"
-            )
-
-        await interaction.followup.send(embed=embed, ephemeral=True)
-
-
-class RolesView(discord.ui.View):
+class RolesView(discord.view.View):
     def __init__(self, roles: Dict[str, int]):
-        super().__init__(timeout=None)
-        for label, role_id in roles.items():
-            self.add_item(RolesButton(label=label, role_id=role_id))
+        items = [
+            RolesButton(label=label, role_id=role_id)
+            for label, role_id in roles.items()
+        ]
+
+        super().__init__(*items)
 
 
 class Utility(commands.Cog):
     def __init__(self, bot: GiftifyHelper):
         self.bot = bot
 
-    def cog_load(self):
-        self.bot.add_view(RolesView(ROLES))
+    @commands.interaction(r"roles:\d+", regex=True)
+    async def roles_interaction(self, ctx: discord.Context):
+        async def call_after(self, ctx: discord.Context):
+            assert isinstance(ctx.user, discord.Member)
+            assert ctx.custom_id is not None
+
+            role_id = int(ctx.custom_id.split(":")[-1])
+
+            embed: discord.Embed
+
+            if ctx.user.get_role(role_id) is not None:
+                await ctx.user.remove_roles(role_id)
+                embed = discord.Embed(
+                    colour=0xFF0000,
+                    description=f"<:GiftifyMinus:1122076950421327872> Removed <@&{self.role_id}> from you!",
+                )
+            else:
+                await ctx.user.add_roles(role_id)
+                embed = discord.Embed(
+                    colour=0x00FF00,
+                    description=f"<:GiftifyPlus:1122076954556903494> Added <@&{self.role_id}> to you!",
+                )
+
+            return ctx.followup.send(embed=embed, ephemeral=True)
+
+        return ctx.response.defer(thinking=True, ephemeral=True, call_after=call_after)
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_permissions(manage_guild=True)
-    async def rules(self, ctx: Context) -> None:
-        image_url = "https://giftifybot.vercel.app/giftify_circle.png"
+    @commands.has_permissions("manage_guild")
+    async def rules(self, ctx: discord.Context):
+        image_url = "https://media.discordapp.net/attachments/1120627940485509150/1183051663301427320/Logo_Circle.png"
         tos_url = "https://giftifybot.vercel.app/terms"
         privacy_policy_url = "https://giftifybot.vercel.app/privacy"
+
+        assert ctx.channel is not None
 
         embed = discord.Embed(
             description="Welcome to the Giftify Discord bot support server! We're here to assist you with any questions or issues you may have. To ensure a smooth and helpful experience for everyone, please follow these rules:",
@@ -136,13 +145,16 @@ class Utility(commands.Cog):
             icon_url=image_url,
         )
 
-        await ctx.send(embed=embed)
+        await ctx.channel.send(embed=embed)
+        return ctx.response.send_message("Successfully sent the embed!", ephemeral=True)
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_permissions(manage_guild=True)
-    async def roles(self, ctx: Context) -> None:
-        image_url = "https://giftifybot.vercel.app/giftify_circle.png"
+    @commands.has_permissions("manage_guild")
+    async def roles(self, ctx: discord.Context):
+        image_url = "https://media.discordapp.net/attachments/1120627940485509150/1183051663301427320/Logo_Circle.png"
+
+        assert ctx.channel is not None
 
         embed = discord.Embed(
             title="Roles Selection",
@@ -154,7 +166,9 @@ class Utility(commands.Cog):
         )
         embed.set_thumbnail(url=image_url)
 
-        await ctx.send(embed=embed, view=RolesView(ROLES))
+        await ctx.channel.send(embed=embed, view=RolesView(ROLES))
+
+        return ctx.response.send_message("Successfully sent the embed!", ephemeral=True)
 
 
 async def setup(bot: GiftifyHelper):
